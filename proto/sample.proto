@@ -1,0 +1,34 @@
+syntax = 'proto3';
+
+message PrizeItem{
+    //@name 物品ID
+    int32 itemID = 1;
+    //@name 物品数量
+    int32 itemCnt = 2;
+    //@name 是否活动专用
+    bool isForActivity = 3;
+}
+
+message MissionData{
+    //@name 任务编号
+    int32 missionID = 1;
+
+    //@name 任务过期时间
+    //@datetime
+    int32 missionExpireData=2;
+
+    //@name 任务奖励
+    repeated PrizeItem prizes=3;
+}
+
+
+//@excel 任务配置表.xlsx
+message MissionCfg{
+    // excel 的成员对应excel的sheet
+    //@name 任务数据
+    repeated MissionData missionData=1;
+
+    // 如果有更多的页签，可以继续添加
+
+}
+
