@@ -10,6 +10,7 @@ from openpyxl.cell import WriteOnlyCell
 from openpyxl.comments import Comment
 from openpyxl import load_workbook
 import platform,datetime,json, argparse,subprocess,codecs,time,os,sys
+import Config
 
 # protoc --descriptor_set_out=test.proto.desc --include_source_info  test.proto  生成二进制文件
 # https://developers.google.com/protocol-buffers/docs/reference/cpp/google.protobuf.descriptor.pb
@@ -79,7 +80,18 @@ def GetExcelMeta(meta):
     raise RuntimeError("defination wrong, should only have one message taged with @excel, current cnt {}".format(len(excelMessage)))
   return excelMessage[0]
 
-def GenExcel(meta, excelName):
+def GenExcel(protoFile):
+  desc = ConvertProtoToFileDescriptor(protoFile)
+  meta = GenMetaFromDesc(desc)
+
+  if not protoFile in Config.Config:
+      raise RuntimeError("ERROR, proto file {} not found in Config.py".format(protoFile))
+  
+  excelName = Config.Config[protoFile]["excel"]
+
+  if os.path.exists(excelName):
+    raise RuntimeError("ERROR, proto file {} already exist, if wannna generating a new one, pls rename existing file".format(excelName))
+
   excelMessage = GetExcelMeta(meta)
   wb = Workbook()
   wb.remove(wb.active)
@@ -147,12 +159,12 @@ def SingleFinal(allMeta, meta, row, col, origValue, singleOrigValue):
   if entryType == "TYPE_STRING":
     return str(singleOrigValue)
   if entryType =="TYPE_BOOL":
-    if singleOrigValue  == "是":
+    if singleOrigValue  == "是" or singleOrigValue==1:
       return True
-    elif singleOrigValue  == "否":
+    elif singleOrigValue  == "否" or singleOrigValue==0 or singleOrigValue=="":
       return False
     else:
-      raise RuntimeError("entryName {},row{}, col{}, origValue {} invalid".format(meta["name"], row, col, origValue))
+      raise RuntimeError("entryName {},row{}, col{}, origValue {} invalid, 必须为是/否/0/1".format(meta["name"], row, col, origValue))
   
   if entryType in ["TYPE_INT32","TYPE_UINT32", "TYPE_INT64", "TYPE_UINT64"]:
       return int(singleOrigValue)
@@ -251,12 +263,23 @@ def GenPythonObj(meta, excelFile,headerRow=1, startCol = 1):
         root[fieldMeta["name"]]=singleRow
   return root
 
-def GenCfg(desc, meta, excelFile, format, outputFile):
-  if excelFile == None or outputFile == None:
-    raise RuntimeError("ERROR, excelFile or outputFile None")
+def GenCfg(protoFile):
+  if not protoFile in Config.Config:
+      raise RuntimeError("ERROR, proto file {} not found in Config.py".format(protoFile))
+
+  excelFile = Config.Config[protoFile]["excel"]
+
+  desc = ConvertProtoToFileDescriptor(protoFile)
+  meta = GenMetaFromDesc(desc)
+
+  if excelFile == None:
+    raise RuntimeError("ERROR, excelFile not configured")
+
   excelMessage = GetExcelMeta(meta)
   pythonObj = GenPythonObj(meta, excelFile)
   content=""
+  format="json"   #先只支持json
+  outputFile = Config.Config[protoFile]["serverCfg"]
   if format == "json":
     # 第一层排个序，这个是为了兼容过去，和以往比对是OK的以后就可以去掉 ,todo
     tmp = {k: pythonObj[k] for k in sorted(pythonObj)}
@@ -291,25 +314,26 @@ def ConvertProtoToFileDescriptor(protoFile):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='PBExcel')
 
-  parser.add_argument('-p', '--proto', dest='proto', action='store', required=True,
+  parser.add_argument('-p', '--proto', dest='proto', action='store',
                     help='protobuf file name')
   parser.add_argument('-a', '--action', dest='action', action='store', required=True,
-                    help='action list: GenExcel GenCfg')
-  parser.add_argument('-o', '--output', dest='output', action='store', required=True,
-                    help='output file name')
-  parser.add_argument('-e', '--excel', dest='excel', action='store',
-                    help='excel file')
-  parser.add_argument('-f', '--format', dest='format', action='store', default="json",
-                    help='output format, valid when action is GenCfg, can be lua/json/pb')
+                    help='action list: GenExcel GenCfg GenAll')
+  #parser.add_argument('-o', '--output', dest='output', action='store', required=True,
+  #                  help='output file name')
+  #parser.add_argument('-e', '--excel', dest='excel', action='store',
+  #                  help='excel file')
+  #parser.add_argument('-f', '--format', dest='format', action='store', default="json",
+  #                  help='output format, valid when action is GenCfg, can be lua/json/pb')
   args = parser.parse_args()
 
-  desc = ConvertProtoToFileDescriptor(args.proto)
-  meta = GenMetaFromDesc(desc)
-
   if args.action == "GenExcel":
-    GenExcel(meta, args.output)
+    GenExcel(args.proto)
   elif args.action == "GenCfg":
-    GenCfg(desc, meta, args.excel, args.format, args.output)
+    GenCfg(args.proto)
+  elif args.action == "GenAll":
+    print(Config.Config.keys())
+    for proto in Config.Config.keys():
+      GenCfg(proto)
   else:
     print("invalid action")
     exit(1)

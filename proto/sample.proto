@@ -22,7 +22,7 @@ message MissionData{
 }
 
 
-//@excel 任务配置表.xlsx
+//@excel
 message MissionCfg{
     // excel 的成员对应excel的sheet
     //@name 任务数据
