@@ -241,7 +241,6 @@ def GenPythonObj(meta, excelFile, filter, headerRow=1, startCol = 1):
       print("\twarning: {} not in message defination, ignore".format(sheet.title))
       continue
     fieldMeta = [fieldMeta for fieldMeta in excelMessage["field"] if sheet.title == GetNameFromMeta(fieldMeta)][0]
-    print(fieldMeta)
     if filter(fieldMeta):
       continue
 

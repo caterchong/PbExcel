@@ -2,12 +2,12 @@
     "missionData":[
         {
             "missionID":1001,
-            "missionExpireData":1320940800,
+            "missionExpireData":1318262400,
             "prizes":[
                 {
-                    "itemID":4002,
+                    "itemID":420001,
                     "itemCnt":10,
-                    "isForActivity":true
+                    "type":1
                 }
             ]
         }

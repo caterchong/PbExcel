@@ -1,5 +1,11 @@
 syntax = 'proto3';
 
+enum ItemType{
+    ITEM_TYPE_NONE=0;
+    ITEM_TYPE_EQIP=1;
+    ITEM_TYPE_VEHICLE=2;
+}
+
 message PrizeItem{
     //@name 物品ID
     int32 itemID = 1;
@@ -11,6 +17,9 @@ message PrizeItem{
     //@name 物品图标
     //@client
     string icon = 4;
+
+    //@name 物品类型
+    ItemType type=5;
 }
 
 message MissionData{
