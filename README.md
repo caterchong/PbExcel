@@ -33,6 +33,8 @@
 ```
 查看sample.proto里面的配置
 <img src="tools/protobuf_tag.png" width="500"/>
+- 如果某些字段只想转给服务器，就用 ***//@server***
+- 如果某些字段只想转给客户端，就用 ***//@client***
 
 生成的Excel如图所示
 
