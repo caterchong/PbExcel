@@ -194,8 +194,10 @@ def GetFinalVal(allMeta, meta, row,col, value):
     return SingleFinal(allMeta, meta, row, col, value, value)
 
 # 填充数据到mapData
-def FillData(allMeta, root, headerSplit,row,col, value):
+def FillData(allMeta, root, headerSplit,row,col, value,filter):
   if not headerSplit:
+    return
+  if filter(headerSplit[0]):
     return
   entryType = headerSplit[0]["type"]
   entryName = headerSplit[0]["name"]
@@ -206,7 +208,7 @@ def FillData(allMeta, root, headerSplit,row,col, value):
       return
     if entryLabel == "LABEL_OPTIONAL":
       root[entryName] = {} if entryName not in root else root[entryName]
-      FillData(allMeta, root[entryName], headerSplit[1:],row,col, value)
+      FillData(allMeta, root[entryName], headerSplit[1:],row,col, value,filter)
     else:  # repeated, should have a index, index start from 1
       index = int(headerSplit[1])-1
       root[entryName] = [] if entryName not in root else root[entryName]
@@ -214,7 +216,7 @@ def FillData(allMeta, root, headerSplit,row,col, value):
         raise RuntimeError("entryName {} index {}>{}, too big".format(entryName, index, len(root[entryName])))
       if index == len(root[entryName]):
         root[entryName].append({})
-      FillData(allMeta, root[entryName][index], headerSplit[2:],row, col, value)
+      FillData(allMeta, root[entryName][index], headerSplit[2:],row, col, value,filter)
   else:  # basic 
     try:
       convertValue = GetFinalVal(allMeta, headerSplit[0],row,col, value)
@@ -226,7 +228,8 @@ def FillData(allMeta, root, headerSplit,row,col, value):
 
 
 # headerRow 列标题所在的行， startCol：数据开始的列，这两个参数是为了应对客户端特殊的Excel格式，计数都是从1开始
-def GenPythonObj(meta, excelFile,headerRow=1, startCol = 1):
+# filter 是否需要过滤掉某个sheet, 某个member
+def GenPythonObj(meta, excelFile, filter, headerRow=1, startCol = 1):
   if excelFile == None:
     raise RuntimeError("ERROR, excelFile or outputFile None")
   excelMessage = GetExcelMeta(meta)
@@ -238,30 +241,53 @@ def GenPythonObj(meta, excelFile,headerRow=1, startCol = 1):
       print("\twarning: {} not in message defination, ignore".format(sheet.title))
       continue
     fieldMeta = [fieldMeta for fieldMeta in excelMessage["field"] if sheet.title == GetNameFromMeta(fieldMeta)][0]
+    print(fieldMeta)
+    if filter(fieldMeta):
+      continue
+
     print("Excel:",excelFile, "Sheet:", sheet.title, "MaxRow:", sheet.max_row, "MaxCol:",sheet.max_column)
     headerText=[ cell.value for cell in sheet[headerRow]]  #第一行
-    headerSplit = [ConvertSingleTagName(meta,  fieldMeta["typeName"], [] if x == None else x.replace("#", ".").replace("[", ".").replace("]", "").split(".")) for x in headerText]
+
+    #headerSplit = [ConvertSingleTagName(meta,  fieldMeta["typeName"], [] if x == None else x.replace("[", ".").replace("]", "").split(".")) for x in headerText]
+    
+    headerSplit=[]
+    for x in headerText:
+      textSplit=[]
+      if x != None:
+        textSplit= x.replace("[", ".").replace("]", "").split(".")   # a.b 拆分成[a b], a[1].b拆分成[a 1 b]
+      headerSplit.append(ConvertSingleTagName(meta, fieldMeta["typeName"], textSplit))
+    # headerSplit最终变成[ a_entryMeta 1  b_entry_meta], 方便后面的处理
 
     #print("fieldMeta", fieldMeta)
-    if fieldMeta["label"] == "LABEL_REPEATED":
+    if fieldMeta["label"] == "LABEL_REPEATED": #  一个sheet只配置多行数据
       root[fieldMeta["name"]]=[]
       for row in range(headerRow, sheet.max_row):  #ignore header
         singleRow = {}
         for col in range(startCol -1, min(sheet.max_column,len(headerText))):  # 规避有的时候有些excel在一些空白的地方乱写数据
           cell = sheet.cell(row=row+1, column=col+1)  # 行列都从1开始
-          FillData(meta, singleRow, headerSplit[col], row,col, cell.value)
+          FillData(meta, singleRow, headerSplit[col], row,col, cell.value,filter)
         #print(singleRow)
         if singleRow:#如果是空的，就算了
           root[fieldMeta["name"]].append(singleRow)
-    else:
+    else:     #  一个sheet只配置一行数据, 这个时候就没有必要生成array了
       singleRow = {}
       for col in range(startCol-1, min(sheet.max_column,len(headerText))):
         cell = sheet.cell(row=2, column=col+1)  # 行列都从1开始
-        FillData(meta, singleRow, headerSplit[col], 1,col, cell.value)
+        FillData(meta, singleRow, headerSplit[col], 1,col, cell.value,filter)
       #print(singleRow)
       if singleRow:
         root[fieldMeta["name"]]=singleRow
   return root
+
+def serverFilter(meta):
+  if "tag" in meta and "client" in meta["tag"]:
+    return True
+  return False
+
+def clientFilter(meta):
+  if "tag" in meta and "server" in meta["tag"]:
+    return True
+  return False
 
 def GenCfg(protoFile):
   if not protoFile in Config.Config:
@@ -276,24 +302,21 @@ def GenCfg(protoFile):
     raise RuntimeError("ERROR, excelFile not configured")
 
   excelMessage = GetExcelMeta(meta)
-  pythonObj = GenPythonObj(meta, excelFile)
-  content=""
-  format="json"   #先只支持json
-  outputFile = Config.Config[protoFile]["serverCfg"]
-  if format == "json":
-    # 第一层排个序，这个是为了兼容过去，和以往比对是OK的以后就可以去掉 ,todo
-    tmp = {k: pythonObj[k] for k in sorted(pythonObj)}
-    content = json.dumps(tmp, sort_keys=False, indent=4, separators=(",", ":"), ensure_ascii=False)
+
+
+  if "serverCfg" in Config.Config[protoFile]:
+    pythonObj = GenPythonObj(meta, excelFile, serverFilter)
+    outputFile = Config.Config[protoFile]["serverCfg"]
+    content = json.dumps(pythonObj, sort_keys=False, indent=4, separators=(",", ":"), ensure_ascii=False)
     codecs.open(outputFile, "w", encoding="utf-8").write(content)
-  elif format == "pb":
-    messageMap = message_factory.GetMessages(desc.file)
-    message = messageMap[meta["package"] + "." + excelMessage["name"]]()
-    json_format.Parse(json.dumps(pythonObj), message)
-    content = message.SerializeToString()
-    codecs.open(outputFile, "wb").write(content)
-  else:
-    raise RuntimeError("ERROR, not support {} format output".format(format))  
-  print("outputfile " + outputFile)
+    print("serverCfg " + outputFile)
+
+  if "clientCfg" in Config.Config[protoFile]:
+    outputFile = Config.Config[protoFile]["clientCfg"]
+    pythonObj = GenPythonObj(meta, excelFile, clientFilter)
+    content = json.dumps(pythonObj, sort_keys=False, indent=4, separators=(",", ":"), ensure_ascii=False)
+    codecs.open(outputFile, "w", encoding="utf-8").write(content)
+    print("clientCfg " + outputFile)
 
 # convert from proto text to file decriptor binary string
 def ConvertProtoToFileDescriptor(protoFile):

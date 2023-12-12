@@ -7,6 +7,10 @@ message PrizeItem{
     int32 itemCnt = 2;
     //@name 是否活动专用
     bool isForActivity = 3;
+
+    //@name 物品图标
+    //@client
+    string icon = 4;
 }
 
 message MissionData{
