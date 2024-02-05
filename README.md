@@ -1,6 +1,6 @@
 # 使用流程
-1. 开发同学设计Excel格式
-2. 产品同学配置excel和转换Excel
+1. 设计Excel格式
+2. 配置excel和转换Excel
 3. 发布新配置
 
 # 使用准备
@@ -8,10 +8,8 @@
 <img src="tools/install.png" alt="install" width="500"/>
 2. pip install protobuf openpyxl
 
-# 产品同学使用
-配置完Excel后，双击gen_all_cfg.bat, 然后commit变更的配置即可
+# 使用
 
-# 开发同学使用
 1. 在proto目录写protobuf描述文件
 2. 在tools/Config.py中配置
 3. 运行gen_excel.bat生成excel
