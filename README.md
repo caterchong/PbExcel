@@ -1,3 +1,8 @@
+# 目的
+游戏中大量使用excel配置，配置OK后需要转成lua/json/pb等格式供程序使用。
+本工具依赖pb， 定义好protobuf后， 根据protobuf描述生成excel，配置excel后，通过protobuf生成lua/json/pb
+程序可以以来protobuf定义，方便的读取配置。
+
 # 使用流程
 1. 设计Excel格式
 2. 配置excel和转换Excel
